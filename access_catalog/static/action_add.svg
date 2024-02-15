@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 100 100" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <rect id="action_add" x="0" y="0" width="100" height="100" style="fill:none;"/>
+    <clipPath id="_clip1">
+        <rect id="action_add1" serif:id="action_add" x="0" y="0" width="100" height="100"/>
+    </clipPath>
+    <g clip-path="url(#_clip1)">
+        <path d="M50.002,100C77.615,100 100,77.615 100,50.002L100,49.998C100,22.385 77.615,0 50.002,-0L49.998,-0C22.385,0 0,22.385 -0,49.998L-0,50.002C0,77.615 22.385,100 49.998,100L50.002,100ZM50.002,90L49.998,90C27.908,90 10,72.092 10,50.002L10,49.998C10,27.908 27.908,10 49.998,10L50.002,10C72.092,10 90,27.908 90,49.998L90,50.002C90,72.092 72.092,90 50.002,90ZM45,45L30,45C27.24,45 25,47.24 25,50C25,52.76 27.24,55 30,55L45,55L45,70C45,72.76 47.24,75 50,75C52.76,75 55,72.76 55,70L55,55L70,55C72.76,55 75,52.76 75,50C75,47.24 72.76,45 70,45L55,45L55,30C55,27.24 52.76,25 50,25C47.24,25 45,27.24 45,30L45,45Z"/>
+    </g>
+</svg>

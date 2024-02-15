@@ -1,0 +1,22 @@
+database:
+  dialect: duckdb
+  credentials:
+    database: .duck.db
+    read_only: False
+  schema: duck.metadata
+
+ui:
+  entities:
+    - name: services
+      title: сервисы
+    - name: projects
+      title: проекты
+    - name: roles
+      title: роли
+    - name: users
+      title: пользователи
+
+server:
+  host: 0.0.0.0
+  title: Каталог сервисных доступов
+  port: 80
