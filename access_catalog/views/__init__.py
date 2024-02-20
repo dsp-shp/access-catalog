@@ -32,7 +32,7 @@ sql = connection.Connection(**CREDENTIALS)
 
 try:
     check, = sql.execute(connection.Connection.select_schema % {'schema': SCHEMA})
-    if True: #[*check.values()][0] < 1:
+    if [*check.values()][0] < 1:
         with open('%s/sample.json' % __path, 'r') as file:
             connection.prepare_database(sql, json.loads(file.read()), SCHEMA)
 except Exception as e:
