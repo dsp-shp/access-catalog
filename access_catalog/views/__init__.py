@@ -7,7 +7,6 @@ import yaml
 __path, = __import__(__name__).__path__
 STATIC: str = '%s/static' % __path
 
-
 ### Чтение конфигурационного файла
 with open('%s/config.yaml' % __path, 'r') as file:
     __config: dict[str, t.Any] = yaml.safe_load(file)
@@ -24,27 +23,22 @@ with open('%s/config.yaml' % __path, 'r') as file:
     FAVICON: str = '%s/favicon.ico' % STATIC
 
 ### Чтение DDL-скриптов и инициализация базы, если последняя не инициализирована
-from .. import connection
-from inspect import getmembers
-
-if DIALECT == 'duckdb':
+if DIALECT == 'duckdb': 
+    ### костыль из-за невозможности передать абсолютный путь в duckdb.connect()
     CREDENTIALS['database'] = '/'.join(['..']*20) + __path + '/' + CREDENTIALS['database']
 
+from .. import connection
+sql = connection.Connection(**CREDENTIALS)
+
 try:
-    Connection: t.Any = dict(getmembers(connection))['%s_Connection' % DIALECT]
-    sql = Connection(**CREDENTIALS)
-    check, = sql.execute(Connection.select_schema % {'schema': SCHEMA})
-    if True: # [*check.values()][0] < 1:
-        with open('%s/connection/%s.sql' % (__path, DIALECT), 'r') as file:
-            ddl: str = file.read()
-        with sql.__connect__() as cnx:
-            cnx.executemany(ddl % {'schema': SCHEMA})
-except KeyError:
-    raise Exception('Необходимый модуль для подключения к "%s" отсутствует' % DIALECT)
+    check, = sql.execute(connection.Connection.select_schema % {'schema': SCHEMA})
+    if [*check.values()][0] < 1:
+        with open('%s/sample.json' % __path, 'r') as file:
+            connection.prepare_database(sql, json.loads(file.read()), SCHEMA)
 except Exception as e:
     raise(e)
 finally:
-    del getmembers, connection, sql
+    del connection, sql
 
 ### Чтение CSS стилей
 with open('%s/assets/base.css' % __path, 'r') as file:
@@ -56,8 +50,8 @@ with open('%s/scripts/base.js' % __path, 'r') as file:
 
 
 ### Дефолтные структуры 
-DEFAULT_CARDS: dict[str, dict[str, bool]] = {x['name']: {} for x in DEFAULT_ENTITIES}
-DEFAULT_FILTERS: str = json.dumps({x['name']: [] for x in DEFAULT_ENTITIES}, ensure_ascii=False)
+DEFAULT_CARDS: dict[str, dict[str, bool]] = {x['type']: {} for x in DEFAULT_ENTITIES}
+DEFAULT_FILTERS: str = json.dumps({x['type']: [] for x in DEFAULT_ENTITIES}, ensure_ascii=False)
 DEFAULT_SUGGESTS: str = '%s' % DEFAULT_FILTERS
 
 
