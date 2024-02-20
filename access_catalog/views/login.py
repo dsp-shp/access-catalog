@@ -1,5 +1,5 @@
 from . import *
-from ..connection import duckdb_Connection as Connection
+from ..connection import Connection
 from fastapi.responses import RedirectResponse
 from nicegui import app, ui
 import json
@@ -20,11 +20,11 @@ def login() -> t.Optional[RedirectResponse]:
             return
         user = sql.execute(
             query=Connection.select_user % {'schema': SCHEMA, 'username': '$username'},
-            params={'username': username.value},
-            handle=False
+            params={'username': username.value}
         )[0]
+        ui.notify(user)
             
-        if validate_pass(password.value, user['properties'].get('__password_hash', '')):
+        if validate_pass(password.value, user['props__map'].get('__password_hash', '')):
             to_update = {
                 'username': username.value,
                 'authenticated': True,

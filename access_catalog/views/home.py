@@ -1,5 +1,5 @@
 from . import *
-from ..connection import duckdb_Connection as Connection
+from ..connection import Connection
 from copy import deepcopy
 from functools import reduce
 from nicegui import app, context, ui
@@ -9,7 +9,7 @@ import json
 import typing as t
 
 
-MAP_TITLE: dict[str, str] = {x['name']: x['title'] for x in DEFAULT_ENTITIES}
+MAP_TITLE: dict[str, str] = {x['type']: x['name'] for x in DEFAULT_ENTITIES}
 MAP_STATUS: dict[str, str] = {
     'готово': 'done',
     'в работе': 'processing',
@@ -43,8 +43,8 @@ def home() -> None:
         app.storage.user.update({
             "%s_entities"  % username: [
                 {
-                    "name": (name := x._props['entity']),
-                    "title": [x for x in DEFAULT_ENTITIES if x['name'] == name][0]['title']
+                    "type": (type_ := x._props['entity']),
+                    "name": [x for x in DEFAULT_ENTITIES if x['type'] == type_][0]['name']
                 } for x in columns.slots['default'].children[:-1] ### исключить неактивную колонку с доступами ### type: ignore
             ] 
         })
@@ -307,36 +307,36 @@ def home() -> None:
         with columns:
             entities = app.storage.user.get('%s_entities' % username, [])
             for x in entities:
-                with ui.card().classes('home-body-row').props(add='entity="%s"' % x['name']):
+                with ui.card().classes('home-body-row').props(add='entity="%s"' % x['type']):
                     with ui.element('div').classes("home-body-row-header"):
-                        ui.label(str(x['title']).capitalize()).classes('home-body-row-header-text cursor-grab')
+                        ui.label(str(x['name']).capitalize()).classes('home-body-row-header-text cursor-grab')
                         with ui.element('div').classes("home-body-row-cell-selected-wrap"):
                             with ui.element('div').classes("home-body-row-cell-selected")\
-                                    .bind_visibility_from(cards, str(x['name']), lambda e: len(cards_selected(e)) > 0):
-                                ui.label().classes('home-body-row-cell-selected-text').bind_text_from(cards, x['name'], lambda e: len(cards_selected(e)))
+                                    .bind_visibility_from(cards, str(x['type']), lambda e: len(cards_selected(e)) > 0):
+                                ui.label().classes('home-body-row-cell-selected-text').bind_text_from(cards, x['type'], lambda e: len(cards_selected(e)))
                             with ui.button().classes("home-body-row-cell-selected reset")\
-                                    .on('click', lambda e: deselect(e), args=[str(x['name'])], trailing_events=False)\
-                                    .bind_visibility_from(cards, str(x['name']), lambda e: len(cards_selected(e)) > 0):
+                                    .on('click', lambda e: deselect(e), args=[str(x['type'])], trailing_events=False)\
+                                    .bind_visibility_from(cards, str(x['type']), lambda e: len(cards_selected(e)) > 0):
                                 ui.image('%s/cross.svg' % STATIC).classes('home-body-row-cell-selected-icon')
 
                     with ui.element('div').classes('separator'): ui.separator()
                     with ui.scroll_area().classes('home-body-row-scroll'):
                         with ui.column().classes('home-body-row-col') as col:
-                            if x['name'] != 'accesses':
-                                _cards = sql.execute(Connection.select_entity % {"schema": SCHEMA, "table": x['name']})
+                            if x['type'] != 'accesses':
+                                _cards = sql.execute(Connection.select_entity % {"schema": SCHEMA, "table": x['type']})
                                 for y in _cards:
                                     Entity(
                                         uuid=y['uuid'],
-                                        type=x['name'],
+                                        type=x['type'],
                                         name=y['name'],
                                         icon=y['icon'],
-                                        desc=y['desc'],
-                                        tags=ensure_struct(y['tags'] if y['tags'] else []),
-                                        properties=ensure_struct(y['properties'] if y['properties'] else {}),
-                                        selected=prev_cards.get(x['name'], {}).get(y['name'], False),
-                                        suggested=y['name'] in prev_suggests.get(x['name'], [])
+                                        desc=y['dscr'],
+                                        tags=ensure_struct(y['tags__list'] if y['tags__list'] else []),
+                                        properties=ensure_struct(y['props__map'] if y['props__map'] else {}),
+                                        selected=prev_cards.get(x['type'], {}).get(y['name'], False),
+                                        suggested=y['name'] in prev_suggests.get(x['type'], [])
                                     )
-                                with ui.element('div').classes('home-body-row-card new').style('opacity: 100%; border-style: dashed;').props('type=%s add=True' % x['name']):
+                                with ui.element('div').classes('home-body-row-card new').style('opacity: 100%; border-style: dashed;').props('type=%s add=True' % x['type']):
                                     ui.label('+').classes('home-body-row-card-title-font').style('align-self: center; font-weight: 900; color: #8090b2;')
                     with ui.element('div').classes('separator'): ui.separator()
                         

@@ -7,16 +7,16 @@ database:
 
 ui:
   entities:
-    - name: services
-      title: сервисы
-    - name: projects
-      title: проекты
-    - name: roles
-      title: роли
-    - name: users
-      title: пользователи
+    - type: services
+      name: сервисы
+    - type: projects
+      name: проекты
+    - type: roles
+      name: роли
+    - type: users
+      name: пользователи
 
 server:
   host: 0.0.0.0
-  title: Каталог сервисных доступов
+  title: Каталог доступов
   port: 80

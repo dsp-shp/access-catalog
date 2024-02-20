@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from datetime import date, datetime
 from json import loads
 import duckdb
 import typing as t
@@ -18,8 +19,8 @@ class Connection:
         select * 
         from (
             select *
-                 , properties->>'__login' as login
-                 , properties->>'корп. почта' as corp_mail
+                 , element_at(props__map, '__login')[1] as login
+                 , element_at(props__map, 'корп. почта')[1] as corp_mail
             from %(schema)s.users 
             where __final is null
         )
@@ -70,71 +71,163 @@ class Connection:
     """
     """ Запрос выборки сущности """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, handle: bool = False, **kwargs) -> None:
         self.args: tuple[t.Any] = args
         self.kwargs: dict[str, t.Any] = kwargs
 
-    @contextmanager
-    def __connect__(self) -> t.Generator[duckdb.DuckDBPyConnection, None, None]:
-        cnx: duckdb.DuckDBPyConnection = duckdb.connect(*self.args, **self.kwargs)
-        try:
-            yield cnx
-        finally:
-            cnx.close()
+        if handle == True: ### режим обработки исключений
+            self.execute = self.__handle(self.execute)
+            self.insert = self.__handle(self.insert)
 
-    def execute(
-        self, 
-        query: str, 
-        params: dict = {}, 
-        handle: bool = False
-    ) -> list[dict]:
+    def __handle(self, f: t.Callable) -> t.Callable:
+        """ Обработка исключений
+        
+        """
+        def wrapper(*args, **kwargs) -> list[dict[str, t.Any]]:
+            try:
+                return f(*args, **kwargs)
+            except Exception as e:
+                print((e, *args, *kwargs.values(),))
+                return [{}]
+        return wrapper
+
+    @contextmanager
+    def __connect(self) -> t.Generator[duckdb.DuckDBPyConnection, None, None]:
+        c: duckdb.DuckDBPyConnection = duckdb.connect(*self.args, **self.kwargs)
+        try:
+            yield c
+        finally:
+            c.close()
+
+    def execute(self, query: str, **kwargs) -> list[dict[str, t.Any]]:
         """ Выполнение запроса
 
         Параметры:
             query (str): текстовый запрос
-            params (dict): параметры выполнения
         
         Возвращает: 
-            tuple[t.Sequence, dict]: кортеж из данных в виде коллекции коллекций
-                и маппинга наименования атрибута на его тип
+            list[dict[str, t.Any]]
         
         """
-        try:
-            with self.__connect__() as cnx:
-                fetched: duckdb.DuckDBPyRelation = cnx.sql(query, params=params)
-        
-                if not fetched or not fetched.columns:
-                    return [{}]
-                cols: dict = dict(zip(fetched.columns, fetched.types))
-                data: list = [dict(zip(cols.keys(), x)) for x in fetched.fetchall()]
-        
-                return [{
-                    k: (
-                        loads(v) if cols[k] == 'JSON' else v
-                    ) for k,v in x.items() if not k.startswith('__')
-                } for x in data]
-        
-        except Exception as e:
-            if handle == True:
+        with self.__connect() as c:
+            rows: duckdb.DuckDBPyRelation = c.sql(query, **kwargs)
+            if not rows or not rows.columns:
                 return [{}]
-            raise Exception('%s\n%s' % (e, query % params,))
+            
+            cols: dict = dict(zip(rows.columns, rows.types))
+            data: list = [dict(zip(cols.keys(), x)) for x in rows.fetchall()]
     
+            return [{
+                ### корректировка структур
+                k: (
+                    (dict(zip(*v.values())) if v else {}) if k.endswith('__map') else v
+                ) for k,v in x.items() if not k.startswith('__')
+            } for x in data]
+
     def insert(
         self,
-        data: list[dict[str, t.Any]], 
         schema: str,
-        table: str
+        table: str,
+        data: list[dict[str, t.Any]],
+        cols: t.Sequence = []
     ) -> None:
-        """ Вставка данных в хранилище """
-        query = """
-            insert into %(schema)s.%(table)s (%(columns)s)
-            values %(values)s
-        """ % {
-            'schema': schema,
-            'table': table,
-            'columns': ', '.join([f'"{x}"' for x in data[0].keys()]),
-            'values': ', '.join(['({})'.format(', '.join(['?']*len(data[0])))]*len(data))
+        """ Вставка данных в хранилище 
+
+        Параметры:
+            schema (str): целевая схема
+            table (str): целевая таблица
+            data (list[dict[str, t.Any]]): искомые данные
+            cols (t.Sequence): перечень колонок для вставки
+        
+        """
+        serialize: t.Callable = lambda x: {
+            int: lambda x: str(x),
+            str: lambda x: '\'%s\'' % x,
+            bool: lambda x: str(x).lower(),
+            date: lambda x: '\'%s\'' % x,
+            datetime: lambda x: '\'%s\'' % x,
+            list: lambda x: ('%s' % x).replace('None', 'null'),
+            dict: lambda x: ('MAP %s' % x).replace('None', 'null'),
+            None: lambda x: 'null'
+        }.get(type(x) if x != None else None, str)(x)
+
+        query: str = """insert into %(s)s.%(t)s (%(c)s) values %(v)s""" % {
+            's': schema,
+            't': table,
+            'c': ', '.join(data[0] if not cols else cols),
+            'v': ', '.join(['(%s)' % ', '.join(map(serialize, r.values())) for r in data])
         }
 
-        with self.__connect__() as cnx:
-            cnx.executemany(query, [[*x.values()] for x in data])
+        try:
+            self.execute(query)
+        except Exception as e:
+            print(query)
+            raise e
+
+def prepare_database(
+    sql: Connection,
+    sample: dict[str, list[dict[str, t.Any]]],
+    schema: str
+) -> None:
+    """ Инициализация презентационной базы данных
+    
+    Параметры:
+        sample (dict[str, list[dict[str, t.Any]]]): словарь вида {
+            'сущность': [список записей для вставки]
+        }
+        schema (str): схема данных
+        
+    """
+    create_metadata: str = """
+        drop schema if exists %(schema)s cascade;
+        create schema %(schema)s;
+    """ % {'schema': schema}
+
+    create_entity: str = """
+        drop table if exists %(schema)s.%(table)s;
+        create table %(schema)s.%(table)s (
+            __start			timestamp 				default (now()),
+            __final			timestamp,
+            uuid			uuid					default (uuid()),
+            name			varchar(200),
+            dscr    		varchar(200),
+            icon			varchar(200),
+            tags__list		varchar[],
+            props__map		map(varchar, varchar)
+        );
+    """
+
+    create_accesses: str = """
+        drop table if exists %(schema)s.accesses;
+        create table %(schema)s.accesses (
+            __start			datetime		default (now()),
+            __final			datetime		default (null),
+            %(create)s,
+            status			varchar(36),
+            creator			varchar(36),
+            comment			varchar(200)
+        );
+        insert into %(schema)s.accesses by name
+        select now() as __start
+             , null as __final
+             , %(select)s
+             , 'Готово' as status
+             , 'Деркач Иван Сергеевич' as creator
+             , null as comment
+        from (select null) _
+        %(fljoin)s
+        order by random()
+        limit 5;
+    """ % {
+        'schema': schema,
+        'create': ',\n'.join(map(lambda x: '%s_uuid uuid' % x[:-1], sample)),
+        'select': '\n,'.join(map(lambda x: '%s.uuid as %s_uuid' % (x, x[:-1]), sample)),
+        'fljoin': '\n'.join(map(lambda x: 'full join %s.%s on true' % (schema, x), sample))
+    }
+    print(create_accesses)
+
+    sql.execute(create_metadata)
+    for k, v in sample.items():
+        sql.execute(create_entity % {'schema': schema, 'table': k})
+        sql.insert(schema, k, v)
+    sql.execute(create_accesses)
