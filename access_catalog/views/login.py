@@ -22,7 +22,6 @@ def login() -> t.Optional[RedirectResponse]:
             query=Connection.select_user % {'schema': SCHEMA, 'username': '$username'},
             params={'username': username.value}
         )[0]
-        ui.notify(user)
             
         if validate_pass(password.value, user['props__map'].get('__password_hash', '')):
             to_update = {
